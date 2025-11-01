@@ -223,7 +223,7 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground">{area.description}</p>
-                    <Button variant="hero" className="w-full mt-4">
+                    <Button variant="hero" className="w-full mt-4" onClick={() => navigate('/quizzes')}>
                       <BookOpen className="w-4 h-4" />
                       Start Learning
                     </Button>
@@ -236,7 +236,7 @@ const Dashboard = () => {
           <TabsContent value="challenges" className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold">Active Challenges</h2>
-              <Button variant="challenge">
+              <Button variant="challenge" onClick={() => navigate('/challenges')}>
                 <Users className="w-4 h-4" />
                 Find Squad
               </Button>
