@@ -83,6 +83,10 @@ export default function ChallengeRoom() {
         },
         (payload) => {
           console.log("Submission update:", payload);
+          toast({
+            title: "Team member submitted!",
+            description: "A squad member just completed their submission",
+          });
         }
       )
       .subscribe();
