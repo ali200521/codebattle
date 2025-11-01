@@ -21,14 +21,16 @@ const Challenges = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("challenges")
-        .select(`
+        .select(
+          `
           *,
           skill_areas (
             id,
             name,
             icon
           )
-        `)
+        `,
+        )
         .in("status", ["active", "pending"])
         .order("starts_at", { ascending: true });
 
@@ -43,7 +45,9 @@ const Challenges = () => {
   const handleTestWithBot1v1 = async (challengeId: string) => {
     setTestingBotId(challengeId);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         toast({
           title: "Error",
@@ -53,22 +57,26 @@ const Challenges = () => {
         return;
       }
 
-      // CodeNinja is our designated test bot (first bot in profiles)
-      const { data: botProfile } = await supabase
+      // Get CodeNinja bot profile
+      const { data: botProfile, error: botError } = await supabase
         .from("profiles")
         .select("id")
         .eq("username", "CodeNinja")
         .single();
 
-      if (!botProfile) {
+      if (botError || !botProfile) {
+        console.error("Bot profile error:", botError);
         toast({
           title: "Error",
-          description: "Test bot not available",
+          description: "Test bot not available. Please contact support.",
           variant: "destructive",
         });
         return;
       }
 
+      console.log("Creating 1v1 bot match:", { challengeId, userId: user.id, botId: botProfile.id });
+
+      // Call edge function to create match
       const { data, error } = await supabase.functions.invoke("create-1v1-match", {
         body: {
           challengeId,
@@ -77,19 +85,25 @@ const Challenges = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Edge function error:", error);
+        throw error;
+      }
+
+      console.log("Match created:", data);
 
       toast({
         title: "Match Created!",
         description: "Your 1v1 bot match is ready",
       });
 
-      navigate(`/challenge/${challengeId}/squad/${data.squad1Id}`);
+      // Navigate using the correct key from response
+      navigate(`/challenge/${challengeId}/squad/${data.squadId}`);
     } catch (error) {
       console.error("Error creating bot match:", error);
       toast({
         title: "Error",
-        description: "Failed to create bot match",
+        description: error instanceof Error ? error.message : "Failed to create bot match",
         variant: "destructive",
       });
     } finally {
@@ -100,7 +114,9 @@ const Challenges = () => {
   const handleTestWithBotsSquad = async (challengeId: string) => {
     setTestingBotId(challengeId);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         toast({
           title: "Error",
@@ -110,6 +126,8 @@ const Challenges = () => {
         return;
       }
 
+      console.log("Creating squad bot match:", { userId: user.id, challengeId });
+
       const { data, error } = await supabase.functions.invoke("create-bot-squad-match", {
         body: {
           userId: user.id,
@@ -117,19 +135,26 @@ const Challenges = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Edge function error:", error);
+        throw error;
+      }
+
+      console.log("Squad match created:", data);
 
       toast({
         title: "Squad Match Created!",
         description: "Your 3v3 bot match is ready",
       });
 
-      navigate(`/challenge/${challengeId}/squad/${data.userSquadId}`);
+      // FIXED: Use 'squadId' instead of 'userSquadId'
+      const squadId = data.squadId || data.userSquadId;
+      navigate(`/challenge/${challengeId}/squad/${squadId}`);
     } catch (error) {
       console.error("Error creating bot squad match:", error);
       toast({
         title: "Error",
-        description: "Failed to create bot squad match",
+        description: error instanceof Error ? error.message : "Failed to create bot squad match",
         variant: "destructive",
       });
     } finally {
@@ -140,7 +165,9 @@ const Challenges = () => {
   const handleFindOpponent = async (challengeId: string) => {
     setIsJoining(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         toast({
           title: "Error",
@@ -150,13 +177,20 @@ const Challenges = () => {
         return;
       }
 
+      console.log("Finding 1v1 opponent:", { userId: user.id, challengeId });
+
       const { data, error } = await supabase.functions.invoke("find-1v1-opponent", {
-        body: { userId: user.id, challengeId }
+        body: { userId: user.id, challengeId },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Edge function error:", error);
+        throw error;
+      }
 
-      if (data.status === 'matched') {
+      console.log("Match response:", data);
+
+      if (data.status === "matched") {
         toast({
           title: "Opponent Found!",
           description: "Starting your 1v1 match",
@@ -165,36 +199,59 @@ const Challenges = () => {
       } else {
         toast({
           title: "Searching...",
-          description: "Looking for an opponent",
+          description: "Looking for an opponent. This may take a moment.",
         });
-        
-        // Poll for match every 3 seconds
-        const pollInterval = setInterval(async () => {
-          const { data: pollData } = await supabase.functions.invoke("find-1v1-opponent", {
-            body: { userId: user.id, challengeId }
+
+        // IMPROVED: Use realtime subscription instead of polling
+        const channel = supabase
+          .channel(`match-queue-${user.id}-${challengeId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "match_queue",
+              filter: `user_id=eq.${user.id}`,
+            },
+            async (payload) => {
+              console.log("Queue updated:", payload);
+              if (payload.new.status === "matched") {
+                // Re-check with edge function to get squad info
+                const { data: matchData } = await supabase.functions.invoke("find-1v1-opponent", {
+                  body: { userId: user.id, challengeId },
+                });
+
+                if (matchData?.status === "matched") {
+                  supabase.removeChannel(channel);
+                  toast({
+                    title: "Opponent Found!",
+                    description: "Starting your 1v1 match",
+                  });
+                  navigate(`/challenge/${challengeId}/squad/${matchData.squadId}`);
+                }
+              }
+            },
+          )
+          .subscribe();
+
+        // Cleanup after 2 minutes
+        setTimeout(() => {
+          supabase.removeChannel(channel);
+          toast({
+            title: "Search Timeout",
+            description: "No opponent found. Please try again.",
+            variant: "destructive",
           });
-
-          if (pollData?.status === 'matched') {
-            clearInterval(pollInterval);
-            toast({
-              title: "Opponent Found!",
-              description: "Starting your 1v1 match",
-            });
-            navigate(`/challenge/${challengeId}/squad/${pollData.squadId}`);
-          }
-        }, 3000);
-
-        // Stop polling after 60 seconds
-        setTimeout(() => clearInterval(pollInterval), 60000);
+          setIsJoining(false);
+        }, 120000);
       }
     } catch (error) {
       console.error("Error finding opponent:", error);
       toast({
         title: "Error",
-        description: "Failed to find opponent",
+        description: error instanceof Error ? error.message : "Failed to find opponent",
         variant: "destructive",
       });
-    } finally {
       setIsJoining(false);
     }
   };
@@ -202,7 +259,9 @@ const Challenges = () => {
   const handleJoinSquad = async (challengeId: string) => {
     setIsJoining(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         toast({
           title: "Error",
@@ -212,6 +271,8 @@ const Challenges = () => {
         return;
       }
 
+      console.log("Joining squad:", { userId: user.id, challengeId });
+
       const { data, error } = await supabase.functions.invoke("match-squad", {
         body: {
           userId: user.id,
@@ -219,19 +280,50 @@ const Challenges = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Edge function error:", error);
+        throw error;
+      }
+
+      console.log("Squad joined:", data);
 
       toast({
         title: "Joined Squad!",
         description: "Finding your teammates...",
       });
 
+      // IMPROVED: Subscribe to squad updates
+      const channel = supabase
+        .channel(`squad-${data.squadId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "squads",
+            filter: `id=eq.${data.squadId}`,
+          },
+          (payload) => {
+            console.log("Squad updated:", payload);
+            if (payload.new.status === "active" && payload.new.opponent_squad_id) {
+              supabase.removeChannel(channel);
+              toast({
+                title: "Squad Ready!",
+                description: "Match starting now!",
+              });
+              navigate(`/challenge/${challengeId}/squad/${data.squadId}`);
+            }
+          },
+        )
+        .subscribe();
+
+      // Navigate immediately (user can see squad forming in challenge room)
       navigate(`/challenge/${challengeId}/squad/${data.squadId}`);
     } catch (error) {
       console.error("Error joining squad:", error);
       toast({
         title: "Error",
-        description: "Failed to join squad",
+        description: error instanceof Error ? error.message : "Failed to join squad",
         variant: "destructive",
       });
     } finally {
@@ -243,17 +335,17 @@ const Challenges = () => {
     const start = new Date(date);
     const now = new Date();
     const diff = start.getTime() - now.getTime();
-    
+
     if (diff < 0) return "Started";
-    
+
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     if (hours > 24) {
       const days = Math.floor(hours / 24);
       return `Starts in ${days}d`;
     }
-    
+
     return `Starts in ${hours}h ${minutes}m`;
   };
 
@@ -304,9 +396,7 @@ const Challenges = () => {
                     <Zap className="w-5 h-5 text-primary" />
                     Test with a Bot
                   </CardTitle>
-                  <CardDescription>
-                    Practice your skills against CodeNinja in an instant 1v1 match
-                  </CardDescription>
+                  <CardDescription>Practice your skills against CodeNinja in an instant 1v1 match</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -389,9 +479,7 @@ const Challenges = () => {
                     <Users className="w-5 h-5 text-primary" />
                     Test with Bots
                   </CardTitle>
-                  <CardDescription>
-                    Practice in a 3v3 match with AI teammates against AI opponents
-                  </CardDescription>
+                  <CardDescription>Practice in a 3v3 match with AI teammates against AI opponents</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -428,7 +516,9 @@ const Challenges = () => {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Squad Size</span>
-                        <span className="font-medium">{challenge.max_squad_size} vs {challenge.max_squad_size}</span>
+                        <span className="font-medium">
+                          {challenge.max_squad_size} vs {challenge.max_squad_size}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Time Limit</span>
@@ -438,11 +528,7 @@ const Challenges = () => {
                         <span className="text-muted-foreground">Starts</span>
                         <span className="font-medium">{getTimeUntil(challenge.starts_at)}</span>
                       </div>
-                      <Button
-                        onClick={() => handleJoinSquad(challenge.id)}
-                        disabled={isJoining}
-                        className="w-full"
-                      >
+                      <Button onClick={() => handleJoinSquad(challenge.id)} disabled={isJoining} className="w-full">
                         {isJoining ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
