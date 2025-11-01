@@ -117,6 +117,36 @@ serve(async (req) => {
         });
     }
 
+    // Try to match ready squads against each other
+    const { data: readySquads } = await supabase
+      .from('squads')
+      .select('*')
+      .eq('challenge_id', challengeId)
+      .eq('status', 'ready')
+      .is('opponent_squad_id', null)
+      .limit(2);
+
+    if (readySquads && readySquads.length >= 2) {
+      const [squad1, squad2] = readySquads;
+      
+      // Link squads as opponents
+      await supabase
+        .from('squads')
+        .update({ 
+          opponent_squad_id: squad2.id,
+          status: 'active'
+        })
+        .eq('id', squad1.id);
+
+      await supabase
+        .from('squads')
+        .update({ 
+          opponent_squad_id: squad1.id,
+          status: 'active'
+        })
+        .eq('id', squad2.id);
+    }
+
     return new Response(
       JSON.stringify({ squadId, message: 'Successfully matched to squad' }),
       {

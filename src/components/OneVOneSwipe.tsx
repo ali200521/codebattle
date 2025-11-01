@@ -75,10 +75,23 @@ export default function OneVOneSwipe({ challengeId, onClose }: OneVOneSwipeProps
           .eq("from_user_id", toUserId)
           .eq("to_user_id", currentUser.id)
           .eq("status", "accepted")
-          .single();
+          .maybeSingle();
 
         if (mutualMatch) {
-          return { matched: true, opponent: toUserId };
+          // Create 1v1 match squads
+          const { data: matchData, error: matchError } = await supabase.functions.invoke(
+            "create-1v1-match",
+            {
+              body: {
+                challengeId,
+                user1Id: currentUser.id,
+                user2Id: toUserId,
+              },
+            }
+          );
+
+          if (matchError) throw matchError;
+          return { matched: true, squadId: matchData.squadId };
         }
       }
 
@@ -92,7 +105,7 @@ export default function OneVOneSwipe({ challengeId, onClose }: OneVOneSwipeProps
         });
         // Navigate to challenge room
         setTimeout(() => {
-          navigate(`/challenge/${challengeId}/1v1/${result.opponent}`);
+          navigate(`/challenge/${challengeId}/squad/${result.squadId}`);
         }, 1500);
       }
       queryClient.invalidateQueries({ queryKey: ["potentialOpponents"] });

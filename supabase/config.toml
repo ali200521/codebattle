@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.match-squad]
 verify_jwt = true
+
+[functions.create-1v1-match]
+verify_jwt = true
