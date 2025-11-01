@@ -24,6 +24,7 @@ export default function ChallengeRoom() {
   const { data: challenge } = useQuery({
     queryKey: ["challenge", challengeId],
     queryFn: async () => {
+      if (!challengeId) throw new Error("No challenge ID");
       const { data, error } = await supabase
         .from("challenges")
         .select("*")
@@ -32,11 +33,13 @@ export default function ChallengeRoom() {
       if (error) throw error;
       return data;
     },
+    enabled: !!challengeId,
   });
 
   const { data: squad } = useQuery({
     queryKey: ["squad", squadId],
     queryFn: async () => {
+      if (!squadId) throw new Error("No squad ID");
       const { data, error } = await supabase
         .from("squads")
         .select(`
@@ -52,6 +55,7 @@ export default function ChallengeRoom() {
       if (error) throw error;
       return data;
     },
+    enabled: !!squadId,
   });
 
   useEffect(() => {

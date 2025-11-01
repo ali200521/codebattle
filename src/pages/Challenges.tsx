@@ -108,7 +108,7 @@ export default function Challenges() {
             const userLevel = userSkillLevels?.find(
               (s) => s.skill_area_id === challenge.skill_area_id
             );
-            const isLocked = !userLevel || userLevel.level < (challenge.difficulty_level || 1);
+            const isLocked = false; // Allow all users to join any challenge for demo purposes
 
             return (
               <Card
