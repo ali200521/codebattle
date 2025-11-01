@@ -8,7 +8,7 @@ import { Users, Clock, Trophy, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
-import { Header } from "@/components/Header";
+import Navigation from "@/components/Navigation";
 
 export default function Challenges() {
   const navigate = useNavigate();
@@ -93,7 +93,7 @@ export default function Challenges() {
 
   return (
     <>
-      <Header />
+      <Navigation />
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
         <div className="container mx-auto px-4 py-8">
         <div className="mb-8">

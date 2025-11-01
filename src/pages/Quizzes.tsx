@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { Clock, Target, Trophy, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-import { Header } from "@/components/Header";
+import Navigation from "@/components/Navigation";
 
 export default function Quizzes() {
   const navigate = useNavigate();
@@ -110,7 +110,7 @@ export default function Quizzes() {
 
   return (
     <>
-      <Header />
+      <Navigation />
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
         <div className="container mx-auto px-4 py-8">
         <div className="mb-8">

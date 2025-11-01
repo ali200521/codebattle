@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Header } from "@/components/Header";
+import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -103,7 +103,7 @@ const Dashboard = () => {
 
   return (
     <>
-      <Header />
+      <Navigation />
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <main className="container mx-auto px-4 py-8 space-y-8">
         {/* Stats Overview */}
