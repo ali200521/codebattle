@@ -539,37 +539,39 @@ const Challenges = () => {
           <TabsContent value="1v1" className="mt-6">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {/* Test with Bot Card */}
-              <Card className="border-2 border-primary/50 bg-card/50 backdrop-blur">
-                <CardHeader>
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      <Bot className="w-3 h-3" />
-                      Test Mode
-                    </Badge>
-                  </div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-primary" />
-                    Test with a Bot
-                  </CardTitle>
-                  <CardDescription>Practice your skills against CodeNinja in an instant 1v1 match</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={() => duelChallenges[0] && handleTestWithBot1v1(duelChallenges[0].id)}
-                    disabled={testingBotId !== null || !duelChallenges[0]}
-                    className="w-full"
-                  >
-                    {testingBotId === duelChallenges[0]?.id ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating Match...
-                      </>
-                    ) : (
-                      "Start Bot Match"
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
+              {duelChallenges.length > 0 && (
+                <Card className="border-2 border-primary/50 bg-card/50 backdrop-blur">
+                  <CardHeader>
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        <Bot className="w-3 h-3" />
+                        Test Mode
+                      </Badge>
+                    </div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-primary" />
+                      Test with a Bot
+                    </CardTitle>
+                    <CardDescription>Practice your skills against CodeNinja in an instant 1v1 match</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      onClick={() => handleTestWithBot1v1(duelChallenges[0].id)}
+                      disabled={testingBotId !== null}
+                      className="w-full"
+                    >
+                      {testingBotId === duelChallenges[0]?.id ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating Match...
+                        </>
+                      ) : (
+                        "Start Bot Match"
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Real 1v1 Challenges */}
               {duelChallenges.map((challenge) => (
@@ -607,43 +609,54 @@ const Challenges = () => {
                   </CardContent>
                 </Card>
               ))}
+
+              {/* Empty state */}
+              {duelChallenges.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
+                  <Swords className="w-12 h-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No 1v1 Challenges Available</h3>
+                  <p className="text-muted-foreground">Check back soon for new challenges!</p>
+                </div>
+              )}
             </div>
           </TabsContent>
 
           <TabsContent value="squad" className="mt-6">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {/* Test with Bots Card */}
-              <Card className="border-2 border-primary/50 bg-card/50 backdrop-blur">
-                <CardHeader>
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      <Bot className="w-3 h-3" />
-                      Test Mode
-                    </Badge>
-                  </div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-primary" />
-                    Test with Bots
-                  </CardTitle>
-                  <CardDescription>Practice in a 3v3 match with AI teammates against AI opponents</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={() => squadChallenges[0] && handleTestWithBotsSquad(squadChallenges[0].id)}
-                    disabled={testingBotId !== null || !squadChallenges[0]}
-                    className="w-full"
-                  >
-                    {testingBotId === squadChallenges[0]?.id ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating Match...
-                      </>
-                    ) : (
-                      "Start Bot Match"
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
+              {squadChallenges.length > 0 && (
+                <Card className="border-2 border-primary/50 bg-card/50 backdrop-blur">
+                  <CardHeader>
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        <Bot className="w-3 h-3" />
+                        Test Mode
+                      </Badge>
+                    </div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-primary" />
+                      Test with Bots
+                    </CardTitle>
+                    <CardDescription>Practice in a 3v3 match with AI teammates against AI opponents</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button
+                      onClick={() => handleTestWithBotsSquad(squadChallenges[0].id)}
+                      disabled={testingBotId !== null}
+                      className="w-full"
+                    >
+                      {testingBotId === squadChallenges[0]?.id ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating Match...
+                        </>
+                      ) : (
+                        "Start Bot Match"
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Real Squad Challenges */}
               {squadChallenges.map((challenge) => (
@@ -681,6 +694,15 @@ const Challenges = () => {
                   </CardContent>
                 </Card>
               ))}
+
+              {/* Empty state */}
+              {squadChallenges.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
+                  <Users className="w-12 h-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Squad Challenges Available</h3>
+                  <p className="text-muted-foreground">Check back soon for new challenges!</p>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
