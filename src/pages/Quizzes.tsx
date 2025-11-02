@@ -74,18 +74,18 @@ export default function Quizzes() {
       if (error) throw error;
       if (!data?.questions) throw new Error("No questions returned from AI");
 
-      const { error: insertError } = await supabase.from("quizzes").insert({
+      const { data: newQuiz, error: insertError } = await supabase.from("quizzes").insert({
         title: `${topic} Quiz`,
         skill_area_id: skillAreaId,
         questions: data.questions,
         difficulty_level: difficulty,
         time_limit: 300,
-      });
+      }).select().single();
 
       if (insertError) throw insertError;
 
       toast({ title: "Quiz generated successfully!" });
-      refetch();
+      navigate(`/quiz/${newQuiz.id}`);
     } catch (error: any) {
       toast({ 
         title: "Failed to generate quiz", 
