@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Users, Clock, Send, Bot } from "lucide-react";
+import { Users, Clock, Send, Bot, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
 import SquadChat from "@/components/SquadChat";
@@ -21,16 +21,13 @@ export default function ChallengeRoom() {
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [startTime] = useState(Date.now());
+  const [notes, setNotes] = useState("");
 
   const { data: challenge } = useQuery({
     queryKey: ["challenge", challengeId],
     queryFn: async () => {
       if (!challengeId) throw new Error("No challenge ID");
-      const { data, error } = await supabase
-        .from("challenges")
-        .select("*")
-        .eq("id", challengeId)
-        .single();
+      const { data, error } = await supabase.from("challenges").select("*").eq("id", challengeId).single();
       if (error) throw error;
       return data;
     },
@@ -43,14 +40,16 @@ export default function ChallengeRoom() {
       if (!squadId) throw new Error("No squad ID");
       const { data, error } = await supabase
         .from("squads")
-        .select(`
+        .select(
+          `
           *,
           squad_members(
             id,
             role,
             profiles(username, display_name, avatar_url, current_level, total_xp)
           )
-        `)
+        `,
+        )
         .eq("id", squadId)
         .single();
       if (error) throw error;
@@ -65,14 +64,16 @@ export default function ChallengeRoom() {
       if (!squad?.opponent_squad_id) return null;
       const { data, error } = await supabase
         .from("squads")
-        .select(`
+        .select(
+          `
           *,
           squad_members(
             id,
             role,
             profiles(username, display_name, avatar_url, current_level, total_xp)
           )
-        `)
+        `,
+        )
         .eq("id", squad.opponent_squad_id)
         .single();
       if (error) throw error;
@@ -109,13 +110,12 @@ export default function ChallengeRoom() {
           table: "challenge_submissions",
           filter: `squad_id=eq.${squadId}`,
         },
-        (payload) => {
-          console.log("Submission update:", payload);
+        () => {
           toast({
             title: "Team member submitted!",
             description: "A squad member just completed their submission",
           });
-        }
+        },
       )
       .subscribe();
 
@@ -126,7 +126,9 @@ export default function ChallengeRoom() {
 
   const handleSubmit = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
       const timeTaken = Math.floor((Date.now() - startTime) / 1000);
@@ -159,12 +161,18 @@ export default function ChallengeRoom() {
   };
 
   if (!challenge || !squad) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   const questions = (challenge.content as any)?.questions || [];
   const question = questions[currentQuestion];
   const progress = questions.length > 0 ? ((currentQuestion + 1) / questions.length) * 100 : 0;
+  const squadSize = squad.squad_members?.length || 0;
+  const isOneVsOne = squadSize === 1 && challenge.challenge_type === "1v1";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
@@ -195,9 +203,7 @@ export default function ChallengeRoom() {
                 placeholder="Enter your solution here..."
                 className="min-h-[300px] font-mono"
                 value={answers[currentQuestion] || ""}
-                onChange={(e) =>
-                  setAnswers({ ...answers, [currentQuestion]: e.target.value })
-                }
+                onChange={(e) => setAnswers({ ...answers, [currentQuestion]: e.target.value })}
               />
 
               <div className="flex justify-between mt-6">
@@ -215,9 +221,7 @@ export default function ChallengeRoom() {
                     Submit Challenge
                   </Button>
                 ) : (
-                  <Button onClick={() => setCurrentQuestion(currentQuestion + 1)}>
-                    Next Question
-                  </Button>
+                  <Button onClick={() => setCurrentQuestion(currentQuestion + 1)}>Next Question</Button>
                 )}
               </div>
             </Card>
@@ -238,14 +242,10 @@ export default function ChallengeRoom() {
                 {squad.squad_members?.map((member: any) => (
                   <div key={member.id} className="flex items-center gap-3">
                     <Avatar>
-                      <AvatarFallback>
-                        {member.profiles?.username?.[0]?.toUpperCase() || "U"}
-                      </AvatarFallback>
+                      <AvatarFallback>{member.profiles?.username?.[0]?.toUpperCase() || "U"}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <p className="font-medium">
-                        {member.profiles?.display_name || member.profiles?.username}
-                      </p>
+                      <p className="font-medium">{member.profiles?.display_name || member.profiles?.username}</p>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="capitalize">{member.role}</span>
                         <span>Lvl {member.profiles?.current_level || 1}</span>
@@ -281,9 +281,7 @@ export default function ChallengeRoom() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-medium">
-                          {member.profiles?.display_name || member.profiles?.username}
-                        </p>
+                        <p className="font-medium">{member.profiles?.display_name || member.profiles?.username}</p>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
                           <span>Lvl {member.profiles?.current_level || 1}</span>
                           <span>{member.profiles?.total_xp || 0} XP</span>
@@ -295,7 +293,23 @@ export default function ChallengeRoom() {
               </Card>
             )}
 
-            <SquadChat squadId={squadId || ""} botMode={squad.bot_mode || false} />
+            {/* Squad Chat or Notes */}
+            {isOneVsOne ? (
+              <Card className="p-6 border-primary/20">
+                <div className="flex items-center gap-2 mb-4">
+                  <h3 className="font-bold">Notes</h3>
+                </div>
+                <Textarea
+                  placeholder="Take notes here..."
+                  className="min-h-[200px]"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-2">Your personal notes for this challenge</p>
+              </Card>
+            ) : (
+              <SquadChat squadId={squadId || ""} botMode={squad.bot_mode || false} />
+            )}
           </div>
         </div>
       </div>
