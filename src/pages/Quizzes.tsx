@@ -63,13 +63,13 @@ export default function Quizzes() {
       const skillLevel = userSkillLevels?.find(s => s.skill_area_id === skillAreaId);
       const difficulty = skillLevel?.level || 1;
 
-      const { data, error } = await supabase.functions.invoke("generate-quiz", {
-        body: {
-          skillArea: skillAreas?.find(s => s.id === skillAreaId)?.name,
-          difficulty: difficulty <= 2 ? "beginner" : difficulty <= 4 ? "intermediate" : "advanced",
-          topic,
-        },
-      });
+ const { data, error } = await supabase.functions.invoke("generate-quiz", {
+  body: {
+    skillArea: skillAreas?.find(s => s.id === skillAreaId)?.name,
+    difficulty: difficulty <= 2 ? "beginner" : difficulty <= 4 ? "intermediate" : "advanced",
+    topic,
+  },
+});
 
       if (error) throw error;
 
