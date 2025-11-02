@@ -43,7 +43,6 @@ Add your Lovable API key to function environment variables.
 
 5. Connect Lovable AI
 The Supabase Edge Functions invoke Lovable API endpoints (chat/completions) for AI chat and quiz features.
-
 AI responses are processed and displayed in squad chat and quiz screens.
 
 6. Deploy to Lovable
@@ -64,19 +63,12 @@ text
 ├─ README.md
 ├─ package.json
 └─ ... other configs
+
 📝 About AI Integration
 The backend runs on Supabase and calls Lovable AI APIs.
-
 You can change models/endpoints by updating Edge Function code.
-
 API keys and configuration should be managed via environment variables (never hardcoded).
 
-👤 Authors & Contributors
-ali200521
-
-claude
-
-lovable-dev[bot]
 
 📋 License
 MIT (customize if you need a different license)
