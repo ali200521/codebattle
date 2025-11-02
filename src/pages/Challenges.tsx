@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Zap, Users, Bot, Swords } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2, Zap, Users, Bot, Swords, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Header } from "@/components/Header";
 
@@ -15,6 +16,10 @@ const Challenges = () => {
   const { toast } = useToast();
   const [isJoining, setIsJoining] = useState(false);
   const [testingBotId, setTestingBotId] = useState<string | null>(null);
+  const [matchingDialogOpen, setMatchingDialogOpen] = useState(false);
+  const [matchingType, setMatchingType] = useState<"1v1" | "squad" | null>(null);
+  const [squadMembers, setSquadMembers] = useState<any[]>([]);
+  const [opponentSquad, setOpponentSquad] = useState<any[]>([]);
 
   const { data: challenges, isLoading } = useQuery({
     queryKey: ["challenges"],
@@ -57,7 +62,6 @@ const Challenges = () => {
         return;
       }
 
-      // Get CodeNinja bot profile
       const { data: botProfile, error: botError } = await supabase
         .from("profiles")
         .select("id")
@@ -74,9 +78,6 @@ const Challenges = () => {
         return;
       }
 
-      console.log("Creating 1v1 bot match:", { challengeId, userId: user.id, botId: botProfile.id });
-
-      // Call edge function to create match
       const { data, error } = await supabase.functions.invoke("create-1v1-match", {
         body: {
           challengeId,
@@ -90,14 +91,11 @@ const Challenges = () => {
         throw error;
       }
 
-      console.log("Match created:", data);
-
       toast({
         title: "Match Created!",
         description: "Your 1v1 bot match is ready",
       });
 
-      // Navigate using the correct key from response
       navigate(`/challenge/${challengeId}/squad/${data.squadId}`);
     } catch (error) {
       console.error("Error creating bot match:", error);
@@ -126,8 +124,6 @@ const Challenges = () => {
         return;
       }
 
-      console.log("Creating squad bot match:", { userId: user.id, challengeId });
-
       const { data, error } = await supabase.functions.invoke("create-bot-squad-match", {
         body: {
           userId: user.id,
@@ -140,14 +136,11 @@ const Challenges = () => {
         throw error;
       }
 
-      console.log("Squad match created:", data);
-
       toast({
         title: "Squad Match Created!",
         description: "Your 3v3 bot match is ready",
       });
 
-      // FIXED: Use 'squadId' instead of 'userSquadId'
       const squadId = data.squadId || data.userSquadId;
       navigate(`/challenge/${challengeId}/squad/${squadId}`);
     } catch (error) {
@@ -164,6 +157,9 @@ const Challenges = () => {
 
   const handleFindOpponent = async (challengeId: string) => {
     setIsJoining(true);
+    setMatchingType("1v1");
+    setMatchingDialogOpen(true);
+
     try {
       const {
         data: { user },
@@ -174,10 +170,9 @@ const Challenges = () => {
           description: "You must be logged in",
           variant: "destructive",
         });
+        setMatchingDialogOpen(false);
         return;
       }
-
-      console.log("Finding 1v1 opponent:", { userId: user.id, challengeId });
 
       const { data, error } = await supabase.functions.invoke("find-1v1-opponent", {
         body: { userId: user.id, challengeId },
@@ -188,21 +183,15 @@ const Challenges = () => {
         throw error;
       }
 
-      console.log("Match response:", data);
-
       if (data.status === "matched") {
+        setMatchingDialogOpen(false);
         toast({
           title: "Opponent Found!",
           description: "Starting your 1v1 match",
         });
         navigate(`/challenge/${challengeId}/squad/${data.squadId}`);
       } else {
-        toast({
-          title: "Searching...",
-          description: "Looking for an opponent. This may take a moment.",
-        });
-
-        // IMPROVED: Use realtime subscription instead of polling
+        // Subscribe to queue updates for real-time matching
         const channel = supabase
           .channel(`match-queue-${user.id}-${challengeId}`)
           .on(
@@ -214,15 +203,14 @@ const Challenges = () => {
               filter: `user_id=eq.${user.id}`,
             },
             async (payload) => {
-              console.log("Queue updated:", payload);
               if (payload.new.status === "matched") {
-                // Re-check with edge function to get squad info
                 const { data: matchData } = await supabase.functions.invoke("find-1v1-opponent", {
                   body: { userId: user.id, challengeId },
                 });
 
                 if (matchData?.status === "matched") {
                   supabase.removeChannel(channel);
+                  setMatchingDialogOpen(false);
                   toast({
                     title: "Opponent Found!",
                     description: "Starting your 1v1 match",
@@ -234,22 +222,19 @@ const Challenges = () => {
           )
           .subscribe();
 
-        // Cleanup after 2 minutes
+        // Timeout after 2 minutes
         setTimeout(() => {
           supabase.removeChannel(channel);
-          toast({
-            title: "Search Timeout",
-            description: "No opponent found. Please try again.",
-            variant: "destructive",
-          });
+          setMatchingDialogOpen(false);
           setIsJoining(false);
         }, 120000);
       }
     } catch (error) {
       console.error("Error finding opponent:", error);
+      setMatchingDialogOpen(false);
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to find opponent",
+        title: "No Active Players",
+        description: "No opponents available right now. Try bot mode or come back later!",
         variant: "destructive",
       });
       setIsJoining(false);
@@ -258,6 +243,11 @@ const Challenges = () => {
 
   const handleJoinSquad = async (challengeId: string) => {
     setIsJoining(true);
+    setMatchingType("squad");
+    setMatchingDialogOpen(true);
+    setSquadMembers([]);
+    setOpponentSquad([]);
+
     try {
       const {
         data: { user },
@@ -268,10 +258,9 @@ const Challenges = () => {
           description: "You must be logged in",
           variant: "destructive",
         });
+        setMatchingDialogOpen(false);
         return;
       }
-
-      console.log("Joining squad:", { userId: user.id, challengeId });
 
       const { data, error } = await supabase.functions.invoke("match-squad", {
         body: {
@@ -285,15 +274,44 @@ const Challenges = () => {
         throw error;
       }
 
-      console.log("Squad joined:", data);
+      // Get current user profile
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("username, display_name")
+        .eq("id", user.id)
+        .single();
 
-      toast({
-        title: "Joined Squad!",
-        description: "Finding your teammates...",
-      });
+      setSquadMembers([
+        {
+          username: userProfile?.username || "You",
+          display_name: userProfile?.display_name || "You",
+        },
+      ]);
 
-      // IMPROVED: Subscribe to squad updates
-      const channel = supabase
+      // Subscribe to squad member changes
+      const membersChannel = supabase
+        .channel(`squad-members-${data.squadId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "squad_members",
+            filter: `squad_id=eq.${data.squadId}`,
+          },
+          async () => {
+            const { data: members } = await supabase
+              .from("squad_members")
+              .select("profiles(username, display_name)")
+              .eq("squad_id", data.squadId);
+
+            setSquadMembers(members?.map((m) => m.profiles) || []);
+          },
+        )
+        .subscribe();
+
+      // Subscribe to squad updates (for matching)
+      const squadChannel = supabase
         .channel(`squad-${data.squadId}`)
         .on(
           "postgres_changes",
@@ -303,30 +321,47 @@ const Challenges = () => {
             table: "squads",
             filter: `id=eq.${data.squadId}`,
           },
-          (payload) => {
-            console.log("Squad updated:", payload);
+          async (payload) => {
             if (payload.new.status === "active" && payload.new.opponent_squad_id) {
-              supabase.removeChannel(channel);
-              toast({
-                title: "Squad Ready!",
-                description: "Match starting now!",
-              });
-              navigate(`/challenge/${challengeId}/squad/${data.squadId}`);
+              // Get opponent squad members
+              const { data: opponentMembers } = await supabase
+                .from("squad_members")
+                .select("profiles(username, display_name)")
+                .eq("squad_id", payload.new.opponent_squad_id);
+
+              setOpponentSquad(opponentMembers?.map((m) => m.profiles) || []);
+
+              // Wait a moment to show the match, then navigate
+              setTimeout(() => {
+                supabase.removeChannel(membersChannel);
+                supabase.removeChannel(squadChannel);
+                setMatchingDialogOpen(false);
+                toast({
+                  title: "Squad Ready!",
+                  description: "Match starting now!",
+                });
+                navigate(`/challenge/${challengeId}/squad/${data.squadId}`);
+              }, 2000);
             }
           },
         )
         .subscribe();
 
-      // Navigate immediately (user can see squad forming in challenge room)
-      navigate(`/challenge/${challengeId}/squad/${data.squadId}`);
+      // Timeout after 3 minutes
+      setTimeout(() => {
+        supabase.removeChannel(membersChannel);
+        supabase.removeChannel(squadChannel);
+        setMatchingDialogOpen(false);
+        setIsJoining(false);
+      }, 180000);
     } catch (error) {
       console.error("Error joining squad:", error);
+      setMatchingDialogOpen(false);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to join squad",
         variant: "destructive",
       });
-    } finally {
       setIsJoining(false);
     }
   };
@@ -368,6 +403,126 @@ const Challenges = () => {
           <h1 className="text-4xl font-bold text-foreground mb-2">Challenges</h1>
           <p className="text-muted-foreground">Test your skills in 1v1 duels or team up for squad battles</p>
         </div>
+
+        {/* Matching Dialog */}
+        <Dialog open={matchingDialogOpen} onOpenChange={setMatchingDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{matchingType === "1v1" ? "Finding Opponent..." : "Forming Squad..."}</DialogTitle>
+              <DialogDescription>
+                {matchingType === "1v1"
+                  ? "Searching for an opponent. This may take a moment."
+                  : "Finding teammates and opponents for your squad battle."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col items-center justify-center py-8 space-y-6">
+              {matchingType === "1v1" ? (
+                <div className="flex items-center gap-8">
+                  <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-2">
+                      <Users className="w-8 h-8 text-primary" />
+                    </div>
+                    <p className="text-sm font-medium">You</p>
+                  </div>
+
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+
+                  <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-2">
+                      <Users className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">Searching...</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full space-y-6">
+                  {/* Your Squad */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                      <h3 className="font-semibold text-blue-500">Your Squad</h3>
+                    </div>
+                    <div className="space-y-2">
+                      {[0, 1, 2].map((idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-3 p-2 rounded bg-blue-500/10 border border-blue-500/20"
+                        >
+                          {squadMembers[idx] ? (
+                            <>
+                              <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm">
+                                {squadMembers[idx].username[0].toUpperCase()}
+                              </div>
+                              <span className="text-sm">
+                                {squadMembers[idx].display_name || squadMembers[idx].username}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                              <span className="text-sm text-muted-foreground">Searching...</span>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* VS Divider */}
+                  <div className="flex items-center justify-center">
+                    <div className="flex-1 border-t border-border"></div>
+                    <span className="px-4 text-sm font-bold text-muted-foreground">VS</span>
+                    <div className="flex-1 border-t border-border"></div>
+                  </div>
+
+                  {/* Opponent Squad */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                      <h3 className="font-semibold text-red-500">Opponent Squad</h3>
+                    </div>
+                    <div className="space-y-2">
+                      {[0, 1, 2].map((idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-3 p-2 rounded bg-red-500/10 border border-red-500/20"
+                        >
+                          {opponentSquad[idx] ? (
+                            <>
+                              <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-sm">
+                                {opponentSquad[idx].username[0].toUpperCase()}
+                              </div>
+                              <span className="text-sm">
+                                {opponentSquad[idx].display_name || opponentSquad[idx].username}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+                              <span className="text-sm text-muted-foreground">Searching...</span>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setMatchingDialogOpen(false);
+                  setIsJoining(false);
+                }}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Tabs defaultValue="1v1" className="w-full">
           <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
@@ -445,17 +600,8 @@ const Challenges = () => {
                         className="w-full"
                         variant="outline"
                       >
-                        {isJoining ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Searching...
-                          </>
-                        ) : (
-                          <>
-                            <Swords className="w-4 h-4 mr-2" />
-                            Find Opponent
-                          </>
-                        )}
+                        <Swords className="w-4 h-4 mr-2" />
+                        Find Opponent
                       </Button>
                     </div>
                   </CardContent>
@@ -529,14 +675,7 @@ const Challenges = () => {
                         <span className="font-medium">{getTimeUntil(challenge.starts_at)}</span>
                       </div>
                       <Button onClick={() => handleJoinSquad(challenge.id)} disabled={isJoining} className="w-full">
-                        {isJoining ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Joining...
-                          </>
-                        ) : (
-                          "Join Squad"
-                        )}
+                        Join Squad
                       </Button>
                     </div>
                   </CardContent>
