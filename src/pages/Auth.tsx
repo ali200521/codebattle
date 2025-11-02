@@ -23,16 +23,30 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password: loginPassword,
       });
 
-      if (error) throw error;
-      
+      if (error) {
+        // Provide more specific error messages
+        if (error.message.includes("Email not confirmed")) {
+          throw new Error("Please confirm your email address before signing in. Check your inbox for the confirmation link.");
+        }
+        if (error.message.includes("Invalid login credentials")) {
+          throw new Error("Invalid email or password. Please check your credentials and try again.");
+        }
+        throw error;
+      }
+
+      if (!data.session) {
+        throw new Error("Login failed. Please try again.");
+      }
+
       toast.success("Welcome back!");
       navigate("/dashboard");
     } catch (error: any) {
+      console.error("Login error:", error);
       toast.error(error.message || "Failed to login");
     } finally {
       setIsLoading(false);
@@ -49,26 +63,50 @@ const Auth = () => {
         password: signupPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: {
+            username: signupUsername,
+            display_name: signupUsername,
+          }
         },
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error("Failed to create user");
 
-      // Create profile
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert({
-          id: authData.user.id,
-          username: signupUsername,
-          display_name: signupUsername,
-        });
+      // Check if email confirmation is required
+      if (authData.session) {
+        // User is authenticated immediately (email confirmation disabled)
+        // Profile should be created by database trigger, but create as fallback
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .insert({
+            id: authData.user.id,
+            username: signupUsername,
+            display_name: signupUsername,
+          });
 
-      if (profileError) throw profileError;
+        // Ignore error if profile already exists (created by trigger)
+        if (profileError && profileError.code !== '23505') {
+          console.error("Profile creation error:", profileError);
+          // Don't throw - profile might have been created by trigger
+        }
 
-      toast.success("Account created! Redirecting to onboarding...");
-      navigate("/onboarding");
+        toast.success("Account created! Redirecting to onboarding...");
+        navigate("/onboarding");
+      } else {
+        // Email confirmation is required
+        // Profile will be created by database trigger when user confirms email
+        toast.success(
+          "Account created! Please check your email to confirm your account before signing in.",
+          { duration: 6000 }
+        );
+        // Clear form
+        setSignupEmail("");
+        setSignupPassword("");
+        setSignupUsername("");
+      }
     } catch (error: any) {
+      console.error("Signup error:", error);
       toast.error(error.message || "Failed to create account");
     } finally {
       setIsLoading(false);

@@ -1,18 +1,27 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Code2, Home, BookOpen, Trophy, LogOut } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Navigation() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { signOut } = useAuth();
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/auth");
-    toast({ title: "Logged out successfully" });
+    try {
+      await signOut();
+      toast({ title: "Logged out successfully" });
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast({
+        title: "Logout failed",
+        description: "Please try again",
+        variant: "destructive"
+      });
+    }
   };
 
   const isActive = (path: string) => location.pathname === path;
