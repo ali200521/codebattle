@@ -6,7 +6,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -23,7 +22,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are an educational quiz generator. Create high-quality, accurate multiple choice questions.
+    const systemPrompt = `You are an educational quiz generator. Create high-quality, accurate multiple choice questions about coding and software development.
 Return ONLY a valid JSON array with no markdown formatting or code blocks.
 Each question object must have exactly these fields:
 - question: string (the question text)
@@ -31,7 +30,9 @@ Each question object must have exactly these fields:
 - correct_answer: string (one of: "A", "B", "C", or "D")
 - explanation: string (brief explanation of the correct answer)`;
 
-    const userPrompt = `Create a ${numQuestions}-question multiple choice quiz about "${topic}" at ${difficulty} difficulty level.`;
+    const userPrompt = `Create exactly ${numQuestions} multiple choice questions about "${topic}" at ${difficulty} difficulty level for software developers.`;
+
+    console.log("Calling Lovable AI with topic:", topic, "difficulty:", difficulty, "numQuestions:", numQuestions);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -49,30 +50,38 @@ Each question object must have exactly these fields:
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Lovable AI error:", response.status, errorText);
+      
       if (response.status === 429) {
         throw new Error("Rate limit exceeded. Please try again later.");
       }
       if (response.status === 402) {
         throw new Error("Payment required. Please add credits to your Lovable workspace.");
       }
-      const errorText = await response.text();
-      console.error("Lovable AI error:", response.status, errorText);
       throw new Error(`AI gateway error: ${response.status}`);
     }
 
     const data = await response.json();
     const quizContent = data.choices?.[0]?.message?.content || "[]";
     
-    // Parse and validate the quiz content
+    console.log("Received quiz content:", quizContent);
+    
     let questions;
     try {
-      // Remove markdown code blocks if present
       const cleanContent = quizContent.replace(/```json\n?|\n?```/g, '').trim();
       questions = JSON.parse(cleanContent);
       
       if (!Array.isArray(questions)) {
         throw new Error("Quiz content is not an array");
       }
+      
+      if (questions.length === 0) {
+        throw new Error("No questions generated");
+      }
+      
+      console.log(`Successfully generated ${questions.length} questions`);
+      
     } catch (parseError) {
       console.error("Failed to parse quiz content:", quizContent);
       throw new Error("Invalid quiz format received from AI");

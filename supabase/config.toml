@@ -3,6 +3,9 @@ project_id = "noijgivyizwseqqqwgaf"
 [functions.generate-quiz]
 verify_jwt = true
 
+[functions.generate-challenge-questions]
+verify_jwt = true
+
 [functions.match-squad]
 verify_jwt = true
 

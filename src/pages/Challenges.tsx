@@ -62,6 +62,21 @@ const Challenges = () => {
         return;
       }
 
+      // Generate questions for the challenge first
+      const { error: questionsError } = await supabase.functions.invoke("generate-challenge-questions", {
+        body: { challengeId },
+      });
+
+      if (questionsError) {
+        console.error("Questions generation error:", questionsError);
+        toast({
+          title: "Error",
+          description: "Failed to generate challenge questions",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { data: botProfile, error: botError } = await supabase
         .from("profiles")
         .select("id")
@@ -124,6 +139,21 @@ const Challenges = () => {
         return;
       }
 
+      // Generate questions for the challenge first
+      const { error: questionsError } = await supabase.functions.invoke("generate-challenge-questions", {
+        body: { challengeId },
+      });
+
+      if (questionsError) {
+        console.error("Questions generation error:", questionsError);
+        toast({
+          title: "Error",
+          description: "Failed to generate challenge questions",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke("create-bot-squad-match", {
         body: {
           userId: user.id,
@@ -147,7 +177,7 @@ const Challenges = () => {
       console.error("Error creating bot squad match:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create bot squad match",
+        description: "Failed to create bot squad match",
         variant: "destructive",
       });
     } finally {
@@ -171,6 +201,23 @@ const Challenges = () => {
           variant: "destructive",
         });
         setMatchingDialogOpen(false);
+        return;
+      }
+
+      // Generate questions for the challenge first
+      const { error: questionsError } = await supabase.functions.invoke("generate-challenge-questions", {
+        body: { challengeId },
+      });
+
+      if (questionsError) {
+        console.error("Questions generation error:", questionsError);
+        setMatchingDialogOpen(false);
+        toast({
+          title: "Error",
+          description: "Failed to generate challenge questions",
+          variant: "destructive",
+        });
+        setIsJoining(false);
         return;
       }
 
@@ -259,6 +306,23 @@ const Challenges = () => {
           variant: "destructive",
         });
         setMatchingDialogOpen(false);
+        return;
+      }
+
+      // Generate questions for the challenge first
+      const { error: questionsError } = await supabase.functions.invoke("generate-challenge-questions", {
+        body: { challengeId },
+      });
+
+      if (questionsError) {
+        console.error("Questions generation error:", questionsError);
+        setMatchingDialogOpen(false);
+        toast({
+          title: "Error",
+          description: "Failed to generate challenge questions",
+          variant: "destructive",
+        });
+        setIsJoining(false);
         return;
       }
 
