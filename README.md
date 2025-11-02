@@ -48,27 +48,10 @@ AI responses are processed and displayed in squad chat and quiz screens.
 6. Deploy to Lovable
 Once you’re ready, use Lovable's “Share → Publish” feature to deploy to your custom URL (as above).
 
-🧠 Project Structure
-text
-/
-├─ public/
-├─ src/
-│  ├─ components/
-│  ├─ pages/
-│  ├─ integrations/
-│  └─ ...
-├─ supabase/
-│  └─ functions/
-├─ supabase-database-setup.sql
-├─ README.md
-├─ package.json
-└─ ... other configs
-
 📝 About AI Integration
 The backend runs on Supabase and calls Lovable AI APIs.
 You can change models/endpoints by updating Edge Function code.
 API keys and configuration should be managed via environment variables (never hardcoded).
-
 
 📋 License
 MIT (customize if you need a different license)
