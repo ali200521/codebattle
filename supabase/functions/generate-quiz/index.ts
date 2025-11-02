@@ -13,15 +13,17 @@ serve(async (req) => {
   try {
     const { skillArea, difficulty, topic } = await req.json();
     console.log('Generating quiz for:', { skillArea, difficulty, topic });
-
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY not configured');
     }
+    
+    const prompt = `You are a quiz generator that returns only valid JSON. Never include markdown formatting or code blocks.
 
-    const prompt = `Generate a coding quiz with 5 multiple choice questions about ${topic} for ${skillArea} at ${difficulty} level.
+Generate a coding quiz with 5 multiple choice questions about ${topic} for ${skillArea} at ${difficulty} level.
 
 Return ONLY valid JSON in this exact format (no markdown, no code blocks):
+
 {
   "questions": [
     {
@@ -35,30 +37,36 @@ Return ONLY valid JSON in this exact format (no markdown, no code blocks):
 
 Make questions practical and relevant to real-world coding scenarios.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: 'You are a quiz generator that returns only valid JSON. Never include markdown formatting or code blocks.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-      }),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 2048,
+          }
+        }),
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', response.status, errorText);
-      throw new Error(`AI Gateway error: ${response.status}`);
+      console.error('Gemini API error:', response.status, errorText);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const content = data.choices[0].message.content;
     console.log('AI response:', content);
 
     // Clean up the response to extract JSON
